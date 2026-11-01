@@ -3,7 +3,7 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 from clicky_linux.core.capture import ScreenCapturer
-from clicky_linux.vision.engine import VisionEngine
+from clicky_linux.vision.router import VisionRouter
 from clicky_linux.ui.overlay import ClickyOverlay
 
 def main():
@@ -17,9 +17,9 @@ def main():
     screen_path = capturer.capture_fullscreen()
     print(f"📸 Captura completada: {screen_path}")
 
-    print(f"🤖 Analizando con modelo de visión: '{args.query}'...")
-    vision = VisionEngine()
-    result = vision.locate_element(screen_path, args.query)
+    print(f"🤖 Analizando con VisionRouter optimizado: '{args.query}'...")
+    router = VisionRouter()
+    result = router.locate(screen_path, args.query)
     
     print("\n=== Resultado Clicky ===")
     print(f"Coordenadas: ({result.get('x')}, {result.get('y')})")
