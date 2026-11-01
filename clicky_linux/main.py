@@ -5,11 +5,13 @@ from PyQt6.QtWidgets import QApplication
 from clicky_linux.core.capture import ScreenCapturer
 from clicky_linux.vision.router import VisionRouter
 from clicky_linux.ui.overlay import ClickyOverlay
+from clicky_linux.core.voice import VoiceSynthesizer
 
 def main():
     parser = argparse.ArgumentParser(description="Clicky Linux: Ask AI to find and point to any UI element")
     parser.add_argument("query", nargs="?", default="dónde está la barra de búsqueda o el botón principal", help="What to look for")
     parser.add_argument("--duration", type=int, default=5000, help="Pointer display duration in ms")
+    parser.add_argument("--mute", action="store_true", help="Disable voice speech output")
     args = parser.parse_args()
 
     print(f"👁️ Clicky capturando pantalla...")
@@ -25,6 +27,11 @@ def main():
     print(f"Coordenadas: ({result.get('x')}, {result.get('y')})")
     print(f"Voz/Mensaje: {result.get('speech')}")
     print("========================\n")
+
+    # Speech output (TTS)
+    if not args.mute and result.get("speech"):
+        voice = VoiceSynthesizer()
+        voice.speak(result.get("speech"))
 
     app = QApplication(sys.argv)
     overlay = ClickyOverlay()
