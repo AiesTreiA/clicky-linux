@@ -28,7 +28,7 @@ Inspired by [HeyClicky](https://www.heyclicky.com) ([farzaa/clicky](https://gith
 
 ### 1. Install
 ```bash
-git clone https://github.com/your-username/clicky-linux.git
+git clone https://github.com/AiesTreiA/clicky-linux.git
 cd clicky-linux
 pip install -e .
 ```
