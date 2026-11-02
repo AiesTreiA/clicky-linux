@@ -1,8 +1,8 @@
 import sys
 import threading
 import clicky_linux  # ensures QT_QPA_PLATFORM=xcb on Wayland
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QAction, QKeySequence, QShortcut
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QEvent
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QAction, QKeySequence, QShortcut, QKeyEvent
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QPushButton, QLabel, QSystemTrayIcon, QMenu
@@ -11,21 +11,19 @@ from clicky_linux.core.capture import ScreenCapturer
 from clicky_linux.vision.router import VisionRouter
 from clicky_linux.ui.overlay import ClickyOverlay
 from clicky_linux.core.voice import VoiceSynthesizer
+from clicky_linux.core.listener import AudioListener
 
 
 def create_clicky_icon() -> QIcon:
-    """Creates a clean native vector icon for the system tray and app launcher."""
     pixmap = QPixmap(64, 64)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    # Outer glowing circle
     painter.setBrush(QColor(14, 165, 233))
     painter.setPen(QColor(255, 255, 255))
     painter.drawEllipse(6, 6, 52, 52)
 
-    # Pointer triangle inside
     painter.setBrush(QColor(244, 63, 94))
     painter.drawEllipse(22, 22, 20, 20)
     painter.end()
@@ -35,10 +33,11 @@ def create_clicky_icon() -> QIcon:
 class WorkerSignals(QObject):
     finished = pyqtSignal(dict, int, int)
     error = pyqtSignal(str)
+    voice_transcribed = pyqtSignal(str)
 
 
 class ClickyFloatingBar(QWidget):
-    """Spotlight-like floating bar and system tray buddy for Clicky Linux."""
+    """HeyClicky floating tutor bar with Push-to-Talk (Hold Shift or Click Mic to Talk)."""
 
     def __init__(self):
         super().__init__()
@@ -46,9 +45,15 @@ class ClickyFloatingBar(QWidget):
         self.router = VisionRouter()
         self.voice = VoiceSynthesizer()
         self.overlay = ClickyOverlay()
+        self.listener = AudioListener()
+
+        self.is_recording = False
+        self.recorded_wav = None
+
         self.signals = WorkerSignals()
         self.signals.finished.connect(self._on_analysis_done)
         self.signals.error.connect(self._on_analysis_error)
+        self.signals.voice_transcribed.connect(self._on_voice_transcribed)
 
         self._init_ui()
         self._init_tray()
@@ -65,7 +70,7 @@ class ClickyFloatingBar(QWidget):
         self.container = QWidget(self)
         self.container.setStyleSheet("""
             QWidget#container {
-                background-color: rgba(15, 23, 42, 240);
+                background-color: rgba(15, 23, 42, 245);
                 border: 1.5px solid rgba(56, 189, 248, 180);
                 border-radius: 14px;
             }
@@ -84,6 +89,24 @@ class ClickyFloatingBar(QWidget):
             }
             QLineEdit:focus {
                 border: 1px solid #38bdf8;
+            }
+            QPushButton#micBtn {
+                background-color: rgba(30, 41, 59, 220);
+                color: #38bdf8;
+                border: 1px solid #38bdf8;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-weight: bold;
+                font-size: 13px;
+            }
+            QPushButton#micBtn:hover {
+                background-color: #0284c7;
+                color: white;
+            }
+            QPushButton#micBtn[recording="true"] {
+                background-color: #f43f5e;
+                color: white;
+                border: 1px solid #fda4af;
             }
             QPushButton#askBtn {
                 background-color: #0ea5e9;
@@ -121,8 +144,15 @@ class ClickyFloatingBar(QWidget):
 
         top_row = QHBoxLayout()
         self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText("🐧 Pregúntale a Clicky (ej: ¿dónde está el botón de búsqueda?)...")
+        self.input_field.setPlaceholderText("🐧 Pregúntale a Clicky o Mantén pulsado Shift para hablar...")
         self.input_field.returnPressed.connect(self.on_submit)
+        self.input_field.installEventFilter(self)
+
+        self.mic_btn = QPushButton("🎤 Hablar")
+        self.mic_btn.setObjectName("micBtn")
+        self.mic_btn.setToolTip("Mantén presionado Shift o este botón para hablar (Push-to-Talk)")
+        self.mic_btn.pressed.connect(self.start_voice_recording)
+        self.mic_btn.released.connect(self.stop_voice_recording)
 
         self.ask_btn = QPushButton("Señalar 🎯")
         self.ask_btn.setObjectName("askBtn")
@@ -134,28 +164,99 @@ class ClickyFloatingBar(QWidget):
         self.close_btn.clicked.connect(self.hide)
 
         top_row.addWidget(self.input_field, stretch=1)
+        top_row.addWidget(self.mic_btn)
         top_row.addWidget(self.ask_btn)
         top_row.addWidget(self.close_btn)
 
-        self.status_label = QLabel("Listo • Presiona Enter para analizar tu pantalla activa | Costo aprox: ~$0.0001 USD/consulta")
+        self.status_label = QLabel("Listo • [Mantén Shift] para hablar por voz, o escribe y pulsa Enter")
         self.status_label.setObjectName("status")
 
         box.addLayout(top_row)
         box.addWidget(self.status_label)
 
-        # Escape key hides bar
         esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         esc.activated.connect(self.hide)
 
-        self.resize(620, 82)
+        self.resize(680, 84)
         self.center_on_active_screen()
+
+    def eventFilter(self, obj, event):
+        """Catches Shift key press and release to enable Push-to-Talk voice dictation."""
+        if obj == self.input_field or obj == self:
+            if event.type() == QEvent.Type.KeyPress:
+                if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control) and not self.is_recording and not event.isAutoRepeat():
+                    self.start_voice_recording()
+                    return False
+            elif event.type() == QEvent.Type.KeyRelease:
+                if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control) and self.is_recording and not event.isAutoRepeat():
+                    self.stop_voice_recording()
+                    return False
+        return super().eventFilter(obj, event)
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control) and not self.is_recording and not event.isAutoRepeat():
+            self.start_voice_recording()
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event: QKeyEvent):
+        if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control) and self.is_recording and not event.isAutoRepeat():
+            self.stop_voice_recording()
+        super().keyReleaseEvent(event)
+
+    def start_voice_recording(self):
+        if self.is_recording:
+            return
+        self.is_recording = True
+        self.mic_btn.setProperty("recording", "true")
+        self.mic_btn.setText("🔴 Escuchando...")
+        self.mic_btn.style().unpolish(self.mic_btn)
+        self.mic_btn.style().polish(self.mic_btn)
+        self.status_label.setText("🎙️ Grabando audio de micrófono... Suelta Shift cuando termines de hablar.")
+
+        def run_rec():
+            try:
+                self.listener.start_recording()
+            except Exception as e:
+                self.signals.error.emit(f"Error al iniciar micrófono: {e}")
+
+        threading.Thread(target=run_rec, daemon=True).start()
+
+    def stop_voice_recording(self):
+        if not self.is_recording:
+            return
+        self.is_recording = False
+        self.mic_btn.setProperty("recording", "false")
+        self.mic_btn.setText("🎤 Hablar")
+        self.mic_btn.style().unpolish(self.mic_btn)
+        self.mic_btn.style().polish(self.mic_btn)
+        self.status_label.setText("⚡ Transcribiendo voz con IA...")
+
+        def run_transcribe():
+            wav = self.listener.stop_recording()
+            if wav:
+                transcript = self.listener.transcribe(wav)
+                self.signals.voice_transcribed.emit(transcript)
+            else:
+                self.signals.error.emit("Audio muy corto o no detectado.")
+
+        threading.Thread(target=run_transcribe, daemon=True).start()
+
+    def _on_voice_transcribed(self, transcript: str):
+        if not transcript:
+            self.status_label.setText("⚠️ No se entendió el audio. Intenta de nuevo.")
+            return
+
+        self.input_field.setText(transcript)
+        self.status_label.setText(f"🗣️ Transcrito: \"{transcript}\"")
+        # Automatically submit query to Clicky
+        self.on_submit()
 
     def _init_tray(self):
         self.tray = QSystemTrayIcon(create_clicky_icon(), self)
         self.tray.setToolTip("Clicky Linux - AI Desktop Buddy")
 
         menu = QMenu()
-        show_action = QAction("🎯 Preguntar a Clicky", self)
+        show_action = QAction("🎯 Preguntar a Clicky (Super+C)", self)
         show_action.triggered.connect(self.summon_bar)
 
         quit_action = QAction("Salir de Clicky", self)
@@ -179,7 +280,7 @@ class ClickyFloatingBar(QWidget):
     def center_on_active_screen(self):
         mon_x, mon_y, mon_w, mon_h, _ = self.capturer.get_current_monitor_geometry()
         x = mon_x + (mon_w - self.width()) // 2
-        y = mon_y + 60  # Top-center Spotlight position
+        y = mon_y + 60
         self.move(x, y)
 
     def summon_bar(self):
@@ -199,7 +300,6 @@ class ClickyFloatingBar(QWidget):
         self.ask_btn.setEnabled(False)
         self.input_field.setEnabled(False)
 
-        # Temporarily hide the bar for 150ms so it doesn't cover any UI elements in the screenshot
         self.hide()
         QTimer.singleShot(180, lambda: self._capture_and_run(query))
 
