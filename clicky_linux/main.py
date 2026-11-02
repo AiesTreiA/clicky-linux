@@ -62,22 +62,24 @@ def main():
 
     query = args.query or "dónde está la barra de búsqueda o el botón principal"
 
-    print("👁️ Clicky capturando pantalla...")
+    print("👁️ Clicky capturando monitor activo...")
     capturer = ScreenCapturer()
-    screen_path = capturer.capture_fullscreen()
-    print(f"📸 Captura completada: {screen_path}")
+    screen_path, offset_x, offset_y = capturer.capture_active_monitor()
+    print(f"📸 Captura completada: {screen_path} (Monitor offset: x={offset_x}, y={offset_y})")
 
     print(f"🤖 Analizando con VisionRouter optimizado: '{query}'...")
     router = VisionRouter()
     result = router.locate(screen_path, query)
 
-    target_x = result.get("x", 500)
-    target_y = result.get("y", 300)
+    local_x = result.get("x", 500)
+    local_y = result.get("y", 300)
+    target_x = local_x + offset_x
+    target_y = local_y + offset_y
     speech_msg = result.get("speech", "")
 
     print("\n=== Resultado Clicky ===")
     print(f"Proveedor   : {result.get('provider', 'auto')}")
-    print(f"Coordenadas : ({target_x}, {target_y})")
+    print(f"Coordenadas : ({target_x}, {target_y}) [local: {local_x}, {local_y}]")
     print(f"Voz/Mensaje : {speech_msg}")
     print("========================\n")
 
