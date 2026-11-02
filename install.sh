@@ -45,8 +45,15 @@ EOF
 chmod +x "$APPS_DIR/clicky-linux.desktop"
 update-desktop-database "$APPS_DIR" 2>/dev/null || true
 
+# 4. Registrar atajo global de teclado en KDE (Meta + C) como en Mac/Windows
+if command -v kwriteconfig6 >/dev/null 2>&1; then
+    kwriteconfig6 --file kglobalshortcutsrc --group "services" --group "clicky-linux.desktop" --key "_launch" "Meta+C,Meta+C,Invocar Clicky Linux"
+    qdbus org.kde.KGlobalAccel /KGlobalAccel org.kde.KGlobalAccel.reloadConfig 2>/dev/null || true
+fi
+
 echo ""
 echo "✅ ¡Clicky Linux ha sido instalado con éxito!"
-echo "   • Desde tu menú de aplicaciones (Super / Windows key): busca 'Clicky Linux'"
-echo "   • O ejecútalo desde cualquier lugar con: clicky-app"
+echo "   • Atajo global de teclado: presiona [ Super/Windows + C ] en cualquier momento"
+echo "   • Desde tu menú de aplicaciones: busca 'Clicky Linux'"
+echo "   • O ejecútalo con: clicky-app"
 echo "   • El ícono quedará activo en tu bandeja del sistema (junto al reloj)."

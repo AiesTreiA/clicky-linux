@@ -33,9 +33,10 @@ cd clicky-linux
 ./install.sh
 ```
 Once installed:
-- Press your **Super / Windows** key and open **Clicky Linux** from your application menu (or run `clicky-app`).
+- **Global Hotkey:** Press **`Super + C`** (Windows key + C) from anywhere on your desktop to summon Clicky instantly.
+- **Menu Launcher:** Press your **Super / Windows** key and open **Clicky Linux** from your application menu (or run `clicky-app`).
 - A sleek floating bar appears on your active screen and an icon stays in your **System Tray** (next to the clock).
-- Type what you are looking for, press **Enter**, and Clicky will hide its bar, analyze your active monitor, speak to you with neural voice, and point directly at the target!
+- Type or ask what you are looking for, press **Enter**, and Clicky will hide its bar, analyze your active monitor, speak to you with natural voice, and guide you directly on your screen!
 
 ### 2. Test the Visual Pointer Overlay
 ```bash
