@@ -38,15 +38,26 @@ class ClickyOverlay(QWidget):
         self.hide_timer.timeout.connect(self.hide_indicator)
 
     def show_pointer(self, x: int, y: int, label: str = "", duration_ms: int = 5000):
-        """Displays the pointer at the given screen coordinates."""
+        """Displays the pointer at the given screen coordinates across multi-monitor setups."""
         self.target_x = x
         self.target_y = y
         self.label_text = label
         self.active = True
         self.animation_step = 0
         
-        screen_geo = QApplication.primaryScreen().geometry()
-        self.setGeometry(screen_geo)
+        # Calculate full virtual desktop geometry (union of all connected monitors)
+        screens = QApplication.screens()
+        if screens:
+            min_x = min(s.geometry().x() for s in screens)
+            min_y = min(s.geometry().y() for s in screens)
+            max_r = max(s.geometry().x() + s.geometry().width() for s in screens)
+            max_b = max(s.geometry().y() + s.geometry().height() for s in screens)
+            from PyQt6.QtCore import QRect
+            virtual_geo = QRect(min_x, min_y, max_r - min_x, max_b - min_y)
+        else:
+            virtual_geo = QApplication.primaryScreen().geometry()
+
+        self.setGeometry(virtual_geo)
         self.show()
         self.raise_()
         self.update()
