@@ -90,27 +90,43 @@ class VisionRouter:
             "provider": result.get("provider", "fallback")
         }
 
+    def _get_openclaw_bin(self) -> Optional[str]:
+        for candidate in ["/home/astro/.openclaw/bin/openclaw", "/home/astro/.openclaw/tmp/agent-cli/openclaw"]:
+            if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+        res = subprocess.run(["which", "openclaw"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if res.returncode == 0:
+            return res.stdout.decode().strip()
+        return None
+
     def _has_openclaw(self) -> bool:
-        cmd = ["which", "openclaw"]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return res.returncode == 0
+        return self._get_openclaw_bin() is not None
 
     def _query_openclaw(self, image_path: str, prompt: str) -> Optional[Dict[str, Any]]:
+        bin_path = self._get_openclaw_bin()
+        if not bin_path:
+            return None
+
+        # Prefer fast & cheap vision model if configured (deepseek-flash or gemini)
         cmd = [
-            "openclaw", "infer", "image", "describe",
+            bin_path, "infer", "image", "describe",
             "--file", image_path,
             "--prompt", prompt,
             "--json"
         ]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=25)
         if res.returncode == 0 and res.stdout:
             try:
-                output = res.stdout.decode("utf-8")
-                # Extract JSON from output
-                match = re.search(r"\{.*\}", output, re.DOTALL)
-                if match:
-                    parsed = json.loads(match.group(0))
-                    parsed["provider"] = "openclaw"
+                raw_out = res.stdout.decode("utf-8")
+                # OpenClaw wraps output in a response envelope: {"ok": true, "outputs": [{"text": "..."}]}
+                envelope = json.loads(raw_out[raw_out.find("{"):])
+                text_content = envelope.get("outputs", [{}])[0].get("text", "")
+                
+                # Extract the inner JSON coordinates returned by the model
+                inner_match = re.search(r"\{[^{}]*\"x\"[^{}]*\}", text_content, re.DOTALL)
+                if inner_match:
+                    parsed = json.loads(inner_match.group(0))
+                    parsed["provider"] = envelope.get("provider", "openclaw")
                     return parsed
             except Exception:
                 pass
