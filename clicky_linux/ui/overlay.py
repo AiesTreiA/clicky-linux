@@ -114,7 +114,7 @@ class ClickySingleMonitorOverlay(QWidget):
 
             badge_rect = QRectF(badge_x, badge_y, text_w, text_h)
 
-            painter.setPen(QPen(QColor(255, 255, 255), 80), 1.0)
+            painter.setPen(QPen(QColor(255, 255, 255, 80), 1.0))
             painter.setBrush(QBrush(QColor(15, 23, 42, 230)))
             painter.drawRoundedRect(badge_rect, 8.0, 8.0)
 
