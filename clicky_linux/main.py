@@ -46,6 +46,8 @@ def main():
     parser.add_argument("query", nargs="?", default=None, help="Qué elemento buscar en la pantalla (ej. 'dónde está el botón de guardar')")
     parser.add_argument("--duration", type=int, default=5000, help="Duración del puntero en milisegundos (default: 5000)")
     parser.add_argument("--mute", action="store_true", help="Silenciar la síntesis de voz (TTS)")
+    parser.add_argument("--tts-provider", type=str, default="auto", choices=["auto", "elevenlabs", "fal", "byteplus", "openclaw", "local"], help="Proveedor de voz TTS (default: auto -> prioriza ElevenLabs Flash v2.5)")
+    parser.add_argument("--voice-id", type=str, default=None, help="ID de voz personalizado para ElevenLabs")
     parser.add_argument("--auto-click", action="store_true", help="Modo Agente Hands-Free: solicita permiso para hacer clic físico en las coordenadas")
     parser.add_argument("--config", action="store_true", help="Mostrar la configuración actual")
     parser.add_argument("--set", dest="set_key", metavar="KEY=VAL", help="Modificar un valor de configuración (ej. tokens.max_resolution_px=1280)")
@@ -85,7 +87,7 @@ def main():
 
     # Speech output (TTS)
     if not args.mute and speech_msg:
-        voice = VoiceSynthesizer()
+        voice = VoiceSynthesizer(preferred_provider=args.tts_provider, voice_id=args.voice_id)
         voice.speak(speech_msg)
 
     app = QApplication(sys.argv)
