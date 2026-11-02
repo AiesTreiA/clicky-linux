@@ -1,31 +1,31 @@
-import sys
 import math
-from typing import Optional
-from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF
+import clicky_linux  # ensures QT_QPA_PLATFORM=xcb is configured on Wayland
+from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF, QRect
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath
 from PyQt6.QtWidgets import QWidget, QApplication
 
 
-class ClickySingleMonitorOverlay(QWidget):
-    """Transparent click-through overlay window for a single screen."""
+class ClickyOverlay(QWidget):
+    """Transparent, click-through overlay window covering the full multi-monitor virtual desktop.
+    Uses XWayland (XCB) under Wayland sessions with BypassWindowManagerHint so the compositor
+    honors exact global (x, y) coordinates across all connected monitors.
+    """
 
-    def __init__(self, target_screen):
+    def __init__(self):
         super().__init__()
-        self.target_screen = target_screen
-        self.setScreen(target_screen)
 
-        # Wayland/X11 transparent, frameless, click-through configuration
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.WindowTransparentForInput |
-            Qt.WindowType.Tool
+            Qt.WindowType.Tool |
+            Qt.WindowType.BypassWindowManagerHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
-        self.rel_x = 0.0
-        self.rel_y = 0.0
+        self.target_x = 0
+        self.target_y = 0
         self.label_text = ""
         self.active = False
         self.animation_step = 0
@@ -35,20 +35,38 @@ class ClickySingleMonitorOverlay(QWidget):
         self.timer.timeout.connect(self._on_tick)
         self.timer.start(16)
 
-    def display(self, rel_x: float, rel_y: float, label: str):
-        self.rel_x = rel_x
-        self.rel_y = rel_y
+        # Auto-hide timer
+        self.hide_timer = QTimer(self)
+        self.hide_timer.setSingleShot(True)
+        self.hide_timer.timeout.connect(self.hide_indicator)
+
+    def show_pointer(self, global_x: int, global_y: int, label: str = "", duration_ms: int = 5000):
+        """Displays the pointer at exact global desktop coordinates (global_x, global_y)."""
+        screens = QApplication.screens()
+        if screens:
+            min_x = min(s.geometry().x() for s in screens)
+            min_y = min(s.geometry().y() for s in screens)
+            max_r = max(s.geometry().x() + s.geometry().width() for s in screens)
+            max_b = max(s.geometry().y() + s.geometry().height() for s in screens)
+            virtual_geo = QRect(min_x, min_y, max_r - min_x, max_b - min_y)
+        else:
+            virtual_geo = QApplication.primaryScreen().geometry()
+
+        self.target_x = global_x - virtual_geo.x()
+        self.target_y = global_y - virtual_geo.y()
         self.label_text = label
         self.active = True
         self.animation_step = 0
 
-        geo = self.target_screen.geometry()
-        self.setGeometry(geo)
+        self.setGeometry(virtual_geo)
         self.show()
         self.raise_()
         self.update()
 
-    def hide_overlay(self):
+        if duration_ms > 0:
+            self.hide_timer.start(duration_ms)
+
+    def hide_indicator(self):
         self.active = False
         self.update()
         self.hide()
@@ -69,8 +87,8 @@ class ClickySingleMonitorOverlay(QWidget):
         bounce = math.sin(rad) * 6.0
         pulse = 1.0 + 0.15 * math.sin(rad)
 
-        px = float(self.rel_x)
-        py = float(self.rel_y)
+        px = float(self.target_x)
+        py = float(self.target_y)
 
         # 1. Pulsing target rings around the point
         ring_radius = 24.0 * pulse
@@ -120,53 +138,3 @@ class ClickySingleMonitorOverlay(QWidget):
 
             painter.setPen(QColor(248, 250, 252))
             painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
-
-
-class ClickyOverlay:
-    """Multi-monitor manager that routes the pointer to the exact physical monitor under Wayland."""
-
-    def __init__(self):
-        self.overlays = []
-        for screen in QApplication.screens():
-            self.overlays.append(ClickySingleMonitorOverlay(screen))
-
-        self.hide_timer = QTimer()
-        self.hide_timer.setSingleShot(True)
-        self.hide_timer.timeout.connect(self.hide_indicator)
-
-    def show_pointer(self, global_x: int, global_y: int, label: str = "", duration_ms: int = 5000):
-        """Finds which screen contains (global_x, global_y) and displays on that screen's overlay."""
-        screens = QApplication.screens()
-        target_overlay = None
-        rel_x = global_x
-        rel_y = global_y
-
-        for i, screen in enumerate(screens):
-            geo = screen.geometry()
-            if geo.contains(global_x, global_y):
-                target_overlay = self.overlays[i]
-                rel_x = global_x - geo.x()
-                rel_y = global_y - geo.y()
-                break
-
-        if not target_overlay and self.overlays:
-            # Fallback to first screen
-            target_overlay = self.overlays[0]
-            geo = screens[0].geometry()
-            rel_x = global_x - geo.x()
-            rel_y = global_y - geo.y()
-
-        if target_overlay:
-            # Hide all other screens
-            for ov in self.overlays:
-                if ov != target_overlay:
-                    ov.hide_overlay()
-
-            target_overlay.display(rel_x, rel_y, label)
-
-        if duration_ms > 0:
-            self.hide_timer.start(duration_ms)
-
-    def hide_indicator(self):
-        for ov in self.overlays:
-            ov.hide_overlay()
