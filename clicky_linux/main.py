@@ -74,10 +74,11 @@ def main():
     router = VisionRouter(preferred_provider=args.vision_provider)
     result = router.locate(screen_path, query)
 
-    local_x = result.get("x", 500)
-    local_y = result.get("y", 300)
-    target_x = local_x + offset_x
-    target_y = local_y + offset_y
+    local_x = result.get("x", -1)
+    local_y = result.get("y", -1)
+    has_target = result.get("point", True) and (local_x >= 0 and local_y >= 0)
+    target_x = (local_x + offset_x) if has_target else -1
+    target_y = (local_y + offset_y) if has_target else -1
     speech_msg = result.get("speech", "")
 
     vis_cost = result.get("cost_usd", 0.0)
@@ -91,7 +92,10 @@ def main():
 
     print("\n=== Resultado Clicky ===")
     print(f"Proveedor   : {result.get('provider', 'auto')}")
-    print(f"Coordenadas : ({target_x}, {target_y}) [local: {local_x}, {local_y}]")
+    if has_target:
+        print(f"Coordenadas : ({target_x}, {target_y}) [local: {local_x}, {local_y}]")
+    else:
+        print(f"Modo Tutor  : Explicación contextual (sin puntero físico)")
     print(f"Voz/Mensaje : {speech_msg}")
     print(f"Tokens Vis. : {in_tok} in + {out_tok} out")
     print(f"Costo Aprox.: ${total_cost:.5f} USD (Visión: ${vis_cost:.5f} | Voz TTS: ${tts_cost:.5f})")
@@ -104,10 +108,10 @@ def main():
 
     app = QApplication(sys.argv)
     overlay = ClickyOverlay()
-    overlay.show_pointer(
-        target_x,
-        target_y,
-        label=speech_msg,
+    overlay.show_companion(
+        speech_msg,
+        target_x=target_x,
+        target_y=target_y,
         duration_ms=args.duration
     )
 

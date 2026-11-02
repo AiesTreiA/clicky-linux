@@ -63,14 +63,19 @@ class VisionRouter:
         opt_path, scale_x, scale_y = self.optimizer.optimize_for_vision(raw_screenshot_path)
 
         prompt = (
-            "You are Clicky Linux, an AI visual assistant.\n"
-            f"User command: \"{user_instruction}\"\n"
-            "Identify the UI element the user needs to click or interact with.\n"
+            "You are Clicky, a friendly, ultra-smart AI desktop companion and tutor (like HeyClicky).\n"
+            "You see the user's computer screen and guide them through their workflow, teach them any tool, or walk them through what they are stuck on.\n"
+            f"User says: \"{user_instruction}\"\n\n"
+            "Instructions:\n"
+            "1. Answer concisely, warmly, and naturally in Spanish (1 to 2 conversational sentences as if speaking aloud).\n"
+            "2. If the user is asking to find/click something, locate its exact (x, y) coordinates and set \"point\": true.\n"
+            "3. If the user is asking a conceptual question about what is on screen or how to do something step-by-step, explain it clearly. If pointing at a specific button helps, include (x, y) and set \"point\": true; otherwise set \"point\": false and (x, y) = (-1, -1).\n\n"
             "Return STRICT JSON only:\n"
             "{\n"
-            "  \"x\": <integer x coordinate in this image>,\n"
-            "  \"y\": <integer y coordinate in this image>,\n"
-            "  \"speech\": \"<concise instruction in Spanish, max 12 words>\",\n"
+            "  \"speech\": \"<warm, concise explanation/guidance in Spanish>\",\n"
+            "  \"point\": <true or false>,\n"
+            "  \"x\": <integer x coordinate in this image or -1>,\n"
+            "  \"y\": <integer y coordinate in this image or -1>,\n"
             "  \"found\": <true or false>\n"
             "}"
         )
@@ -104,11 +109,12 @@ class VisionRouter:
                 "cost_usd": 0.0
             }
 
-        raw_x = result.get("x", 0)
-        raw_y = result.get("y", 0)
+        raw_x = result.get("x", -1)
+        raw_y = result.get("y", -1)
+        should_point = result.get("point", True) and (raw_x >= 0 and raw_y >= 0)
 
-        final_x = int(raw_x * scale_x)
-        final_y = int(raw_y * scale_y)
+        final_x = int(raw_x * scale_x) if raw_x >= 0 else -1
+        final_y = int(raw_y * scale_y) if raw_y >= 0 else -1
 
         try:
             if opt_path != raw_screenshot_path and os.path.exists(opt_path):
@@ -119,6 +125,7 @@ class VisionRouter:
         return {
             "x": final_x,
             "y": final_y,
+            "point": should_point,
             "speech": result.get("speech", ""),
             "found": result.get("found", True),
             "provider": result.get("provider", "local/fallback"),

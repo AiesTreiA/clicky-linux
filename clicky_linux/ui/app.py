@@ -223,10 +223,11 @@ class ClickyFloatingBar(QWidget):
         self.ask_btn.setEnabled(True)
         self.input_field.setEnabled(True)
 
-        local_x = result.get("x", 500)
-        local_y = result.get("y", 300)
-        target_x = local_x + offset_x
-        target_y = local_y + offset_y
+        local_x = result.get("x", -1)
+        local_y = result.get("y", -1)
+        has_target = result.get("point", True) and (local_x >= 0 and local_y >= 0)
+        target_x = (local_x + offset_x) if has_target else -1
+        target_y = (local_y + offset_y) if has_target else -1
         speech_msg = result.get("speech", "")
         vis_cost = result.get("cost_usd", 0.0)
         tts_cost = round(len(speech_msg) * 0.00005, 6) if speech_msg else 0.0
@@ -239,7 +240,7 @@ class ClickyFloatingBar(QWidget):
         if speech_msg:
             self.voice.speak(speech_msg)
 
-        self.overlay.show_pointer(target_x, target_y, label=speech_msg, duration_ms=6000)
+        self.overlay.show_companion(speech_msg, target_x=target_x, target_y=target_y, duration_ms=6500)
 
     def _on_analysis_error(self, err_msg: str):
         self.ask_btn.setEnabled(True)
