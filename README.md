@@ -1,51 +1,91 @@
 # 🐧 Clicky Linux (`clicky-linux`)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform: Linux Wayland & X11](https://img.shields.io/badge/Platform-Wayland%20%7C%20X11-orange.svg)](#)
+[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-green.svg)](#)
+
 > **The open-source AI desktop buddy for Linux that literally points where to click.**
 
-Inspired by [HeyClicky](https://www.heyclicky.com) / [farzaa/clicky](https://github.com/farzaa/clicky), re-architected natively for Linux (Wayland & X11).
+Inspired by [HeyClicky](https://www.heyclicky.com) ([farzaa/clicky](https://github.com/farzaa/clicky)), built natively for the Linux desktop ecosystem (KDE Plasma, GNOME, Hyprland/wlroots, and X11) with community-driven token optimization.
 
 ---
 
-## ✨ Features
-- **🎯 Visual Pointer Overlay:** A non-intrusive, click-through animated pointer that renders directly over your desktop without stealing focus.
-- **👁️ Multimodal Screen Understanding:** Analyzes your active workspace and returns exact `(x, y)` coordinates along with spoken guidance.
-- **⚡ Token Optimization (Model Cascading):** Designed for extreme token efficiency:
-  - Downscaled ROIs (Region of Interest)
-  - Micro JSON schemas for fast responses
-  - BYOK (*Bring Your Own Key*) + Community Token Pooling via [OpenClaw](https://openclaw.ai)
-  - Full local execution option (Whisper + Ollama + Kokoro TTS = $0 / 0 tokens)
-- **🐧 Native Linux Integration:** Works seamlessly on Wayland (KDE Plasma, GNOME, wlroots) and X11 via XDG Desktop Portal / Spectacle.
+## ✨ Key Features
+
+- **🎯 Click-Through Visual Pointer Overlay:** A non-intrusive, 60 FPS animated pointer rendered via PyQt6 (`WindowTransparentForInput`) directly over your active screen without stealing focus or blocking mouse clicks.
+- **👁️ Multimodal Screen Understanding:** Captures your screen (`spectacle`, `grim`, `scrot`, or Qt grab) and locates exact `(x, y)` coordinates for any button, menu, or UI element.
+- **⚡ Extreme Token Optimization (Model Cascading):**
+  - Automatic Lanczos downscaling to 1280px before vision inference (saves up to **75–80% of vision tokens**) with automatic coordinate re-scaling back to native 4K/2K resolution.
+  - Supports **OpenClaw** multi-model routing, **Gemini Flash**, **DeepSeek**, and **100% free local models** via **Ollama**.
+- **🔊 Zero-Token Local Voice (TTS & STT):** Speaks instructions out loud using native Linux `spd-say` / OpenClaw TTS, and records voice queries via PipeWire/ALSA (`arecord`).
+- **🤝 Community Token Pool & BYOK:** Bring Your Own Key or connect to community-contributed inference nodes to help train and run open-source Linux GUI agents.
+- **🛡️ BudgetGuard for Premium Models:** Built-in cost estimator and monthly cap ledger (`clicky_linux.core.budget_guard`) so you never accidentally overspend on premium APIs like Claude Sonnet.
+- **🖱️ Optional Hands-Free Agent Mode (`--auto-click`):** Can move the cursor or click on your behalf after asking for explicit approval via a native `kdialog` / `zenity` confirmation popup.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Requirements
-- Python 3.10+
-- PyQt6
-- Desktop environment running Wayland or X11
-
-### 2. Test Pointer Overlay
+### 1. Install
 ```bash
-python3 -m clicky_linux.test_pointer --x 600 --y 350 --label "Click here to save"
+git clone https://github.com/your-username/clicky-linux.git
+cd clicky-linux
+pip install -e .
 ```
 
-### 3. Run Full Flow (Capture + Locate + Point)
+### 2. Test the Visual Pointer Overlay
 ```bash
-export GEMINI_API_KEY="your-api-key"
-python3 -m clicky_linux.main "dónde está el botón de enviar"
+python3 -m clicky_linux.test_pointer --x 600 --y 350 --label "Haz clic aquí para guardar"
+```
+
+### 3. Ask Clicky to Find Any Element on Your Screen
+```bash
+# Uses OpenClaw Gateway or GEMINI_API_KEY automatically
+python3 -m clicky_linux.main "dónde está el botón de configuración"
+```
+
+### 4. Hands-Free Agent Mode (with Native Approval Dialog)
+```bash
+python3 -m clicky_linux.main "botón de cerrar o guardar" --auto-click
+```
+
+### 5. Manage Configuration & Community Token Pool
+```bash
+# View current configuration
+python3 -m clicky_linux.main --config
+
+# Set a custom configuration parameter
+python3 -m clicky_linux.main --set tokens.max_resolution_px=1280
+
+# Check Community Token Pool status
+python3 -m clicky_linux.main --pool-status
+```
+
+### 6. Use BudgetGuard (Protected Claude Sonnet CLI via OpenClaw)
+```bash
+# Dry-run cost estimation
+python3 -m clicky_linux.core.budget_guard "Analiza la arquitectura de este módulo" --dry-run
+
+# Check monthly estimated spend
+python3 -m clicky_linux.core.budget_guard --status
 ```
 
 ---
 
-## 🗺️ Roadmap
-- [x] **v0.1 (Iteration 1):** Core click-through Wayland/X11 overlay + screen capturer.
-- [ ] **v0.2 (Iteration 2):** Multimodal ROI optimizer and OpenClaw model router.
-- [ ] **v0.3 (Iteration 3):** Global Push-to-Talk hotkey + ultra-fast local STT/TTS (Whisper/Piper).
-- [ ] **v0.4 (Iteration 4):** Community token pooling (crowdsourced AI tokens) & BYOK config manager.
-- [ ] **v0.5 (Iteration 5):** Optional hands-free agent mode (auto-click with user approval) + Flatpak packaging.
+## 🗺️ Roadmap (v0.1 → v0.5 Completed!)
+
+- [x] **v0.1 (Iteration 1):** Core click-through Wayland/X11 overlay + universal screen capturer.
+- [x] **v0.2 (Iteration 2):** Multimodal Lanczos image optimizer & OpenClaw / Gemini router.
+- [x] **v0.3 (Iteration 3):** Local zero-token Linux TTS (`spd-say`) & audio listener (`arecord`).
+- [x] **v0.4 (Iteration 4):** Community Token Pool manager, BYOK config CLI, and `BudgetGuard` ledger.
+- [x] **v0.5 (Iteration 5):** Hands-Free Agent Mode with native KDE/GNOME confirmation dialog, unit tests, `pyproject.toml`, and public GitHub documentation.
 
 ---
+
+## 🤝 Contributing & Donating Tokens
+
+Want to contribute code, UI datasets for Linux desktops, or idle AI tokens to the community pool? Read [CONTRIBUTING.md](CONTRIBUTING.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 📄 License
-MIT License. Built by the open-source community.
+
+Released under the [MIT License](LICENSE).
