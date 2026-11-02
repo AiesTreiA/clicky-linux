@@ -45,6 +45,7 @@ def main():
     )
     parser.add_argument("query", nargs="?", default=None, help="Qué elemento buscar en la pantalla (ej. 'dónde está el botón de guardar')")
     parser.add_argument("--duration", type=int, default=5000, help="Duración del puntero en milisegundos (default: 5000)")
+    parser.add_argument("--vision-provider", type=str, default="auto", choices=["auto", "gemini", "openclaw", "local"], help="Proveedor de visión (default: auto -> prioriza google/gemini-3.1-flash-lite de ultra-bajo costo)")
     parser.add_argument("--mute", action="store_true", help="Silenciar la síntesis de voz (TTS)")
     parser.add_argument("--tts-provider", type=str, default="auto", choices=["auto", "elevenlabs", "fal", "byteplus", "openclaw", "local"], help="Proveedor de voz TTS (default: auto -> prioriza ElevenLabs Flash v2.5)")
     parser.add_argument("--voice-id", type=str, default=None, help="ID de voz personalizado para ElevenLabs")
@@ -70,7 +71,7 @@ def main():
     print(f"📸 Captura completada: {screen_path} (Monitor offset: x={offset_x}, y={offset_y})")
 
     print(f"🤖 Analizando con VisionRouter optimizado: '{query}'...")
-    router = VisionRouter()
+    router = VisionRouter(preferred_provider=args.vision_provider)
     result = router.locate(screen_path, query)
 
     local_x = result.get("x", 500)
@@ -79,10 +80,21 @@ def main():
     target_y = local_y + offset_y
     speech_msg = result.get("speech", "")
 
+    vis_cost = result.get("cost_usd", 0.0)
+    in_tok = result.get("in_tokens", 0)
+    out_tok = result.get("out_tokens", 0)
+
+    # Estimar costo de TTS (~$0.00005 por caracter en ElevenLabs Flash v2.5, $0 en local)
+    tts_chars = len(speech_msg) if (not args.mute and speech_msg) else 0
+    tts_cost = round(tts_chars * 0.00005, 6) if (tts_chars > 0 and args.tts_provider in ("auto", "elevenlabs")) else 0.0
+    total_cost = vis_cost + tts_cost
+
     print("\n=== Resultado Clicky ===")
     print(f"Proveedor   : {result.get('provider', 'auto')}")
     print(f"Coordenadas : ({target_x}, {target_y}) [local: {local_x}, {local_y}]")
     print(f"Voz/Mensaje : {speech_msg}")
+    print(f"Tokens Vis. : {in_tok} in + {out_tok} out")
+    print(f"Costo Aprox.: ${total_cost:.5f} USD (Visión: ${vis_cost:.5f} | Voz TTS: ${tts_cost:.5f})")
     print("========================\n")
 
     # Speech output (TTS)
