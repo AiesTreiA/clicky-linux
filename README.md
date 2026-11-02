@@ -26,12 +26,16 @@ Inspired by [HeyClicky](https://www.heyclicky.com) ([farzaa/clicky](https://gith
 
 ## 🚀 Quick Start
 
-### 1. Install
+### 1. Install Desktop App (Menu Icon + System Tray + Spotlight Bar)
 ```bash
 git clone https://github.com/AiesTreiA/clicky-linux.git
 cd clicky-linux
-pip install -e .
+./install.sh
 ```
+Once installed:
+- Press your **Super / Windows** key and open **Clicky Linux** from your application menu (or run `clicky-app`).
+- A sleek floating bar appears on your active screen and an icon stays in your **System Tray** (next to the clock).
+- Type what you are looking for, press **Enter**, and Clicky will hide its bar, analyze your active monitor, speak to you with neural voice, and point directly at the target!
 
 ### 2. Test the Visual Pointer Overlay
 ```bash

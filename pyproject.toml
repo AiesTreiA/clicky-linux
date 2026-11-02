@@ -28,6 +28,7 @@ dependencies = [
 
 [project.scripts]
 clicky = "clicky_linux.main:main"
+clicky-app = "clicky_linux.ui.app:main"
 clicky-pointer = "clicky_linux.test_pointer:main"
 clicky-budget = "clicky_linux.core.budget_guard:main"
 
